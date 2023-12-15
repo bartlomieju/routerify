@@ -1,8 +1,8 @@
 use hyper::{
-    body::{self, Body, HttpBody},
-    Server,
+    body::{self},
+    server::conn::http1,
 };
-use routerify::{Router, RouterService};
+use routerify::{Router, RouterService, HttpBody, Body};
 use std::net::SocketAddr;
 use tokio::sync::oneshot::{self, Sender};
 
@@ -51,6 +51,7 @@ where
     Serve { addr, tx }
 }
 
-pub async fn into_text(body: Body) -> String {
-    String::from_utf8_lossy(&body::to_bytes(body).await.unwrap()).to_string()
+pub async fn into_text(body: Box<Body>) -> String {
+    // String::from_utf8_lossy(&body::to_bytes(body).await.unwrap()).to_string()
+    unimplemented!()
 }

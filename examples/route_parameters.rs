@@ -1,4 +1,4 @@
-use hyper::{Body, Request, Response, Server};
+use hyper::{Request, Response};
 // Import the routerify prelude traits.
 use routerify::prelude::*;
 use routerify::{Router, RouterService};

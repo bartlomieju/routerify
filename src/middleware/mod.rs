@@ -1,5 +1,6 @@
+use crate::{Body, HttpBody};
 use crate::types::RequestInfo;
-use hyper::{body::HttpBody, Request, Response};
+use hyper::{Request, Response};
 use std::future::Future;
 
 pub use self::post::PostMiddleware;
@@ -48,8 +49,8 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     /// ```
     pub fn pre<H, R>(handler: H) -> Middleware<B, E>
     where
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
-        R: Future<Output = Result<Request<hyper::Body>, E>> + Send + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
+        R: Future<Output = Result<Request<Box<Body>>, E>> + Send + 'static,
     {
         Middleware::pre_with_path("/*", handler).unwrap()
     }
@@ -136,8 +137,8 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn pre_with_path<P, H, R>(path: P, handler: H) -> crate::Result<Middleware<B, E>>
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
-        R: Future<Output = Result<Request<hyper::Body>, E>> + Send + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
+        R: Future<Output = Result<Request<Box<Body>>, E>> + Send + 'static,
     {
         Ok(Middleware::Pre(PreMiddleware::new(path, handler)?))
     }

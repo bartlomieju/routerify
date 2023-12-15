@@ -1,11 +1,11 @@
-use crate::constants;
+use crate::{constants, HttpBody, Body};
 use crate::data_map::{DataMap, ScopedDataMap};
 use crate::middleware::{Middleware, PostMiddleware, PreMiddleware};
 use crate::route::Route;
 use crate::router::Router;
 use crate::router::{ErrHandler, ErrHandlerWithInfo, ErrHandlerWithoutInfo};
 use crate::types::RequestInfo;
-use hyper::{body::HttpBody, Method, Request, Response};
+use hyper::{Method, Request, Response};
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
@@ -15,7 +15,7 @@ use std::sync::Arc;
 /// This `RouterBuilder<B, E>` type accepts two type parameters: `B` and `E`.
 ///
 /// * The `B` represents the response body type which will be used by route handlers and the middlewares and this body type must implement
-///   the [HttpBody](https://docs.rs/hyper/0.14.4/hyper/body/trait.HttpBody.html) trait. For an instance, `B` could be [hyper::Body](https://docs.rs/hyper/0.14.4/hyper/body/struct.Body.html)
+///   the [HttpBody](https://docs.rs/hyper/0.14.4/hyper/body/trait.HttpBody.html) trait. For an instance, `B` could be [Box<Body>](https://docs.rs/hyper/0.14.4/hyper/body/struct.Body.html)
 ///   type.
 /// * The `E` represents any error type which will be used by route handlers and the middlewares. This error type must implement the [std::error::Error](https://doc.rust-lang.org/std/error/trait.Error.html).
 ///
@@ -39,7 +39,7 @@ use std::sync::Arc;
 ///
 /// # fn run() -> Router<Body, hyper::Error> {
 /// // Use Router::builder() method to create a new RouterBuilder instance.
-/// // We will use hyper::Body as response body type and hyper::Error as error type.
+/// // We will use Box<Body> as response body type and hyper::Error as error type.
 /// let router: Router<Body, hyper::Error> = Router::builder()
 ///     .get("/", home_handler)
 ///     .post("/upload", upload_handler)
@@ -132,7 +132,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn get<P, H, R>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, vec![Method::GET], handler)
@@ -162,7 +162,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn get_or_head<P, H, R>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, vec![Method::GET, Method::HEAD], handler)
@@ -192,7 +192,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn post<P, H, R>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, vec![Method::POST], handler)
@@ -222,7 +222,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn put<P, H, R>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, vec![Method::PUT], handler)
@@ -252,7 +252,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn delete<P, H, R>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, vec![Method::DELETE], handler)
@@ -282,7 +282,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn head<P, H, R>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, vec![Method::HEAD], handler)
@@ -312,7 +312,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn trace<P, H, R>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, vec![Method::TRACE], handler)
@@ -342,7 +342,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn connect<P, H, R>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, vec![Method::CONNECT], handler)
@@ -372,7 +372,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn patch<P, H, R>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, vec![Method::PATCH], handler)
@@ -402,7 +402,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn options<P, H, R>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, vec![Method::OPTIONS], handler)
@@ -442,7 +442,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     /// ```
     pub fn any<H, R>(self, handler: H) -> Self
     where
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add("/*", constants::ALL_POSSIBLE_HTTP_METHODS.to_vec(), handler)
@@ -473,7 +473,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn any_method<H, R, P>(self, path: P, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.add(path, constants::ALL_POSSIBLE_HTTP_METHODS.to_vec(), handler)
@@ -503,7 +503,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub fn add<P, H, R>(self, path: P, methods: Vec<Method>, handler: H) -> Self
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
         self.and_then(move |mut inner| {
@@ -678,7 +678,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     /// Specify app data to be shared across route handlers, middlewares and the error handler.
     ///
     /// Please refer to the [Data and State Sharing](./index.html#data-and-state-sharing) for more info.
-    pub fn data<T: Send + Sync + 'static>(self, data: T) -> Self {
+    pub fn data<T: Send + Sync + Clone + 'static>(self, data: T) -> Self {
         self.and_then(move |mut inner| {
             let data_maps = &mut inner.data_maps;
 

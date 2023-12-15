@@ -1,6 +1,7 @@
+use crate::HttpBody;
 use crate::router::Router;
 use crate::service::request_service::{RequestService, RequestServiceBuilder};
-use hyper::{body::HttpBody, server::conn::AddrStream, service::Service};
+use hyper::{service::Service};
 use std::convert::Infallible;
 use std::future::{ready, Ready};
 use std::task::{Context, Poll};
@@ -68,20 +69,16 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     }
 }
 
-impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static>
-    Service<&AddrStream> for RouterService<B, E>
-{
-    type Response = RequestService<B, E>;
-    type Error = Infallible;
-    type Future = Ready<Result<Self::Response, Self::Error>>;
+// impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static>
+//     Service<&AddrStream> for RouterService<B, E>
+// {
+//     type Response = RequestService<B, E>;
+//     type Error = Infallible;
+//     type Future = Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+//     fn call(&mut self, conn: &AddrStream) -> Self::Future {
+//         let req_service = self.builder.build(conn.remote_addr());
 
-    fn call(&mut self, conn: &AddrStream) -> Self::Future {
-        let req_service = self.builder.build(conn.remote_addr());
-
-        ready(Ok(req_service))
-    }
-}
+//         ready(Ok(req_service))
+//     }
+// }

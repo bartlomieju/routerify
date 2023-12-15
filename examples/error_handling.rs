@@ -1,4 +1,4 @@
-use hyper::{Body, Request, Response, Server, StatusCode};
+use hyper::{Request, Response, StatusCode};
 use routerify::{Router, RouterService};
 use std::net::SocketAddr;
 

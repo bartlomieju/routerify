@@ -1,11 +1,12 @@
-use crate::constants;
+use crate::{constants, HttpBody, Body, into_body, into_body_infallible};
 use crate::data_map::ScopedDataMap;
 use crate::middleware::{PostMiddleware, PreMiddleware};
 use crate::route::Route;
 use crate::types::RequestInfo;
 use crate::Error;
 use crate::RouteError;
-use hyper::{body::HttpBody, header, Method, Request, Response, StatusCode};
+use hyper::body::Bytes;
+use hyper::{header, Method, Request, Response, StatusCode};
 use regex::RegexSet;
 use std::any::Any;
 use std::fmt::{self, Debug, Formatter};
@@ -31,7 +32,7 @@ pub(crate) type ErrHandlerWithInfoReturn<B> = Box<dyn Future<Output = Response<B
 /// This `Router<B, E>` type accepts two type parameters: `B` and `E`.
 ///
 /// * The `B` represents the response body type which will be used by route handlers and the middlewares and this body type must implement
-///   the [HttpBody](https://docs.rs/hyper/0.14.4/hyper/body/trait.HttpBody.html) trait. For an instance, `B` could be [hyper::Body](https://docs.rs/hyper/0.14.4/hyper/body/struct.Body.html)
+///   the [HttpBody](https://docs.rs/hyper/0.14.4/hyper/body/trait.HttpBody.html) trait. For an instance, `B` could be [Box<Body>](https://docs.rs/hyper/0.14.4/hyper/body/struct.Body.html)
 ///   type.
 /// * The `E` represents any error type which will be used by route handlers and the middlewares. This error type must implement the [std::error::Error](https://doc.rust-lang.org/std/error/trait.Error.html).
 ///
@@ -44,13 +45,13 @@ pub(crate) type ErrHandlerWithInfoReturn<B> = Box<dyn Future<Output = Response<B
 /// use hyper::{Response, Request, Body};
 ///
 /// // A handler for "/about" page.
-/// // We will use hyper::Body as response body type and hyper::Error as error type.
+/// // We will use Box<Body> as response body type and hyper::Error as error type.
 /// async fn about_handler(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 ///     Ok(Response::new(Body::from("About page")))
 /// }
 ///
 /// # fn run() -> Router<Body, hyper::Error> {
-/// // Create a router with hyper::Body as response body type and hyper::Error as error type.
+/// // Create a router with Box<Body> as response body type and hyper::Error as error type.
 /// let router: Router<Body, hyper::Error> = Router::builder()
 ///     .get("/about", about_handler)
 ///     .build()
@@ -165,10 +166,10 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
         }
 
         if let Some(router) = self.downcast_to_hyper_body_type() {
-            let options_route: Route<hyper::Body, E> = Route::new("/*", options_method, |_req| async move {
+            let options_route: Route<Box<Body>, E> = Route::new("/*", options_method, |_req| async move {
                 Ok(Response::builder()
                     .status(StatusCode::NO_CONTENT)
-                    .body(hyper::Body::empty())
+                    .body(into_body_infallible(String::new()))
                     .expect("Couldn't create the default OPTIONS response"))
             })
             .unwrap();
@@ -193,12 +194,12 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
         }
 
         if let Some(router) = self.downcast_to_hyper_body_type() {
-            let default_404_route: Route<hyper::Body, E> =
+            let default_404_route: Route<Box<Body>, E> =
                 Route::new("/*", constants::ALL_POSSIBLE_HTTP_METHODS.to_vec(), |_req| async move {
                     Ok(Response::builder()
                         .status(StatusCode::NOT_FOUND)
                         .header(header::CONTENT_TYPE, "text/plain")
-                        .body(hyper::Body::from(StatusCode::NOT_FOUND.canonical_reason().unwrap()))
+                        .body(into_body_infallible(StatusCode::NOT_FOUND.canonical_reason().unwrap().to_owned()))
                         .expect("Couldn't create the default 404 response"))
                 })
                 .unwrap();
@@ -219,12 +220,12 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
         }
 
         if let Some(router) = self.downcast_to_hyper_body_type() {
-            let handler: ErrHandler<hyper::Body> = ErrHandler::WithoutInfo(Box::new(move |err: RouteError| {
+            let handler: ErrHandler<Box<Body>> = ErrHandler::WithoutInfo(Box::new(move |err: RouteError| {
                 Box::new(async move {
                     Response::builder()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
                         .header(header::CONTENT_TYPE, "text/plain")
-                        .body(hyper::Body::from(format!(
+                        .body(into_body_infallible(format!(
                             "{}: {}",
                             StatusCode::INTERNAL_SERVER_ERROR.canonical_reason().unwrap(),
                             err
@@ -241,9 +242,9 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
         }
     }
 
-    fn downcast_to_hyper_body_type(&mut self) -> Option<&mut Router<hyper::Body, E>> {
+    fn downcast_to_hyper_body_type(&mut self) -> Option<&mut Router<Box<Body>, E>> {
         let any_obj: &mut dyn Any = self;
-        any_obj.downcast_mut::<Router<hyper::Body, E>>()
+        any_obj.downcast_mut::<Router<Box<Body>, E>>()
     }
 
     /// Return a [RouterBuilder](./struct.RouterBuilder.html) instance to build a `Router`.
@@ -254,7 +255,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub(crate) async fn process(
         &self,
         target_path: &str,
-        mut req: Request<hyper::Body>,
+        mut req: Request<Box<Body>>,
         mut req_info: Option<RequestInfo>,
     ) -> crate::Result<Response<B>> {
         let (
@@ -358,11 +359,11 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
 
     async fn execute_pre_middleware(
         &self,
-        req: Request<hyper::Body>,
+        req: Request<Box<Body>>,
         matched_pre_middleware_idxs: Vec<usize>,
         route_scope_depth: Option<u32>,
         req_info: Option<RequestInfo>,
-    ) -> crate::Result<Result<Request<hyper::Body>, Response<B>>> {
+    ) -> crate::Result<Result<Request<Box<Body>>, Response<B>>> {
         let mut transformed_req = req;
         for idx in matched_pre_middleware_idxs {
             let pre_middleware = &self.pre_middlewares[idx];

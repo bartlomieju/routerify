@@ -1,14 +1,14 @@
-use crate::helpers;
+use crate::{helpers, Body, HttpBody};
 use crate::regex_generator::generate_exact_match_regex;
 use crate::types::{RequestMeta, RouteParams};
 use crate::Error;
-use hyper::{body::HttpBody, Method, Request, Response};
+use hyper::{Method, Request, Response};
 use regex::Regex;
 use std::fmt::{self, Debug, Formatter};
 use std::future::Future;
 use std::pin::Pin;
 
-type Handler<B, E> = Box<dyn Fn(Request<hyper::Body>) -> HandlerReturn<B, E> + Send + Sync + 'static>;
+type Handler<B, E> = Box<dyn Fn(Request<Box<Body>>) -> HandlerReturn<B, E> + Send + Sync + 'static>;
 type HandlerReturn<B, E> = Box<dyn Future<Output = Result<Response<B>, E>> + Send + 'static>;
 
 /// Represents a single route.
@@ -83,10 +83,10 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
     pub(crate) fn new<P, H, R>(path: P, methods: Vec<Method>, handler: H) -> crate::Result<Route<B, E>>
     where
         P: Into<String>,
-        H: Fn(Request<hyper::Body>) -> R + Send + Sync + 'static,
+        H: Fn(Request<Box<Body>>) -> R + Send + Sync + 'static,
         R: Future<Output = Result<Response<B>, E>> + Send + 'static,
     {
-        let handler: Handler<B, E> = Box::new(move |req: Request<hyper::Body>| Box::new(handler(req)));
+        let handler: Handler<B, E> = Box::new(move |req: Request<Box<Body>>| Box::new(handler(req)));
         Route::new_with_boxed_handler(path, methods, handler, 1)
     }
 
@@ -94,7 +94,7 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
         self.methods.contains(method)
     }
 
-    pub(crate) async fn process(&self, target_path: &str, mut req: Request<hyper::Body>) -> crate::Result<Response<B>> {
+    pub(crate) async fn process(&self, target_path: &str, mut req: Request<Box<Body>>) -> crate::Result<Response<B>> {
         self.push_req_meta(target_path, &mut req);
 
         let handler = self
@@ -105,11 +105,11 @@ impl<B: HttpBody + Send + Sync + 'static, E: Into<Box<dyn std::error::Error + Se
         Pin::from(handler(req)).await.map_err(Into::into)
     }
 
-    fn push_req_meta(&self, target_path: &str, req: &mut Request<hyper::Body>) {
+    fn push_req_meta(&self, target_path: &str, req: &mut Request<Box<Body>>) {
         self.update_req_meta(req, self.generate_req_meta(target_path));
     }
 
-    fn update_req_meta(&self, req: &mut Request<hyper::Body>, req_meta: RequestMeta) {
+    fn update_req_meta(&self, req: &mut Request<Box<Body>>, req_meta: RequestMeta) {
         helpers::update_req_meta_in_extensions(req.extensions_mut(), req_meta);
     }
 

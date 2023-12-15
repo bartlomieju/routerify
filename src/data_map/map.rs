@@ -12,7 +12,7 @@ impl DataMap {
         }
     }
 
-    pub fn insert<T: Send + Sync + 'static>(&mut self, val: T) {
+    pub fn insert<T: Send + Sync + Clone + 'static>(&mut self, val: T) {
         self.inner.insert(val);
     }
 

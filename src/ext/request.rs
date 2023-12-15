@@ -1,3 +1,4 @@
+use crate::Body;
 use crate::data_map::SharedDataMap;
 use crate::types::{RequestContext, RequestMeta, RouteParams};
 use hyper::Request;
@@ -164,7 +165,7 @@ fn set_context<T: Send + Sync + Clone + 'static>(ext: &http::Extensions, val: T)
     ctx.set(val)
 }
 
-impl RequestExt for Request<hyper::Body> {
+impl RequestExt for Request<Box<Body>> {
     fn params(&self) -> &RouteParams {
         params(self.extensions())
     }

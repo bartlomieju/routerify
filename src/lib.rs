@@ -765,6 +765,10 @@
 //! # run();
 //! ```
 
+use std::convert::Infallible;
+
+use hyper::body::Bytes;
+
 pub use self::error::{Error, RouteError};
 pub use self::middleware::{Middleware, PostMiddleware, PreMiddleware};
 pub use self::route::Route;
@@ -790,3 +794,34 @@ mod types;
 
 /// A Result type often returned from methods that can have routerify errors.
 pub type Result<T> = std::result::Result<T, RouteError>;
+
+pub type Body = dyn hyper::body::Body<Data = Bytes, Error = Error> + Unpin + Send + Sync + 'static;
+
+pub(crate) fn into_body(b: impl HttpBody) -> Box<Body> {
+    Box::new(b)
+}
+
+pub(crate) fn into_body_infallible(b: impl hyper::body::Body<Data = Bytes, Error = Infallible> + Unpin + Send + Sync + 'static) -> Box<Body> {
+    struct Wrapper<T>(T) where T: hyper::body::Body<Data = Bytes, Error = Infallible> + Unpin + Send + Sync + 'static;
+    impl <T> hyper::body::Body for Wrapper<T> where T: hyper::body::Body<Data = Bytes, Error = Infallible> + Unpin + Send + Sync + 'static {
+        type Data = Bytes;
+        type Error = Error;
+        fn is_end_stream(&self) -> bool {
+            self.0.is_end_stream()
+        }
+        fn size_hint(&self) -> hyper::body::SizeHint {
+            self.0.size_hint()
+        }
+        fn poll_frame(
+                mut self: std::pin::Pin<&mut Self>,
+                cx: &mut std::task::Context<'_>,
+            ) -> std::task::Poll<Option<std::prelude::v1::Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
+            std::pin::Pin::new(&mut self.as_mut().0).poll_frame(cx).map_err(|_| unreachable!())
+        }
+    }
+    Box::new(Wrapper(b))
+}
+
+pub trait HttpBody: hyper::body::Body<Data = Bytes, Error = Error> + Unpin + Send + Sync + 'static {}
+
+impl <T> HttpBody for T where T: hyper::body::Body<Data = Bytes, Error = Error> + Unpin + Send + Sync + 'static {}

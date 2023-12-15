@@ -1,7 +1,7 @@
 use self::support::{into_text, serve};
-use hyper::{Body, Client, Request, Response, StatusCode};
+use hyper::{Client, Request, Response, StatusCode};
 use routerify::prelude::RequestExt;
-use routerify::{Middleware, RequestInfo, RouteError, Router};
+use routerify::{Middleware, RequestInfo, RouteError, Router, Body};
 use std::io;
 use std::sync::{Arc, Mutex};
 
@@ -35,7 +35,7 @@ async fn can_perform_simple_get_request() {
 async fn can_perform_simple_get_request_boxed_error() {
     const RESPONSE_TEXT: &str = "Hello world";
     type BoxedError = Box<dyn std::error::Error + Sync + Send + 'static>;
-    let router: Router<Body, BoxedError> = Router::builder()
+    let router: Router<Box<Body>, BoxedError> = Router::builder()
         .get("/", |_| async move { Ok(Response::new(RESPONSE_TEXT.into())) })
         .err_handler(|_: RouteError| async move { todo!() })
         .build()
@@ -64,7 +64,7 @@ async fn can_respond_with_data_from_scope_state() {
         struct State {
             count: Arc<Mutex<u8>>,
         }
-        async fn list(req: Request<Body>) -> Result<Response<Body>, io::Error> {
+        async fn list(req: Request<Box<Body>>) -> Result<Response<Body>, io::Error> {
             let count = req.data::<State>().unwrap().count.lock().unwrap();
             Ok(Response::new(Body::from(format!("{}", count))))
         }
@@ -81,11 +81,11 @@ async fn can_respond_with_data_from_scope_state() {
         struct State {
             count: Arc<Mutex<u8>>,
         }
-        async fn list(req: Request<Body>) -> Result<Response<Body>, io::Error> {
+        async fn list(req: Request<Box<Body>>) -> Result<Response<Body>, io::Error> {
             let count = req.data::<State>().unwrap().count.lock().unwrap();
             Ok(Response::new(Body::from(format!("{}", count))))
         }
-        pub fn router() -> Router<Body, io::Error> {
+        pub fn router() -> Router<Box<Body>, io::Error> {
             let state = State {
                 count: Arc::new(Mutex::new(2)),
             };
@@ -133,14 +133,14 @@ async fn can_propagate_request_context() {
     #[derive(Debug, Clone, PartialEq)]
     struct Id2(u32);
 
-    let before = |req: Request<Body>| async move {
+    let before = |req: Request<Box<Body>>| async move {
         req.set_context(Id(42));
         let (parts, body) = req.into_parts();
         parts.set_context(Id2(42));
         Ok(Request::from_parts(parts, body))
     };
 
-    let index = |req: Request<Body>| async move {
+    let index = |req: Request<Box<Body>>| async move {
         // Check `id` from `before()`.
         let id = req.context::<Id>().unwrap();
         assert_eq!(id, Id(42));
